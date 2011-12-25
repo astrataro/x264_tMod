@@ -896,10 +896,41 @@ static int x264_validate_parameters( x264_t *h, int b_open )
     if( !h->param.rc.b_mb_tree )
         h->param.rc.f_fade_compensate = 0;
 
-    h->param.rc.i_aq_mode = x264_clip3( h->param.rc.i_aq_mode, 0, 4 );
-    h->param.rc.f_aq_strength = x264_clip3f( h->param.rc.f_aq_strength, 0, 3 );
-    if( h->param.rc.f_aq_strength == 0 )
-        h->param.rc.i_aq_mode = 0;
+    h->param.rc.i_aq_mode = x264_clip3( h->param.rc.i_aq_mode, 0, 2 );
+    h->param.rc.f_aq_strength = x264_clip3f( h->param.rc.f_aq_strength, -3, 3 );
+    for( int i = 0; i < 2; i++ )
+        for( int j = 0; j < 4; j++ )
+            h->param.rc.f_aq_strengths[i][j] = x264_clip3f( h->param.rc.f_aq_strengths[i][j], -3, 3 );
+    if( h->param.rc.f_aq_strengths[0][0] == 0 && h->param.rc.f_aq_strengths[1][0] == 0 &&
+        h->param.rc.f_aq_strengths[0][1] == 0 && h->param.rc.f_aq_strengths[1][1] == 0 &&
+        h->param.rc.f_aq_strengths[0][2] == 0 && h->param.rc.f_aq_strengths[1][2] == 0 &&
+        h->param.rc.f_aq_strengths[0][3] == 0 && h->param.rc.f_aq_strengths[1][3] == 0 )
+    {
+        if( h->param.rc.f_aq_strength == 0 )
+            h->param.rc.i_aq_mode = 0;
+        else
+            for( int i = 0; i < 2; i++ )
+                for( int j = 0; j < 4; j++ )
+                    h->param.rc.f_aq_strengths[i][j] = h->param.rc.f_aq_strength;
+    }
+    if( h->param.rc.f_aq_sensitivity < 0 )
+        h->param.rc.f_aq_sensitivity = 0;
+    for( int i = 0; i < 2; i++ )
+    {
+        h->param.rc.f_aq_ifactor[i] = x264_clip3f( h->param.rc.f_aq_ifactor[i], -10, 10 );
+        h->param.rc.f_aq_pfactor[i] = x264_clip3f( h->param.rc.f_aq_pfactor[i], -10, 10 );
+        h->param.rc.f_aq_bfactor[i] = x264_clip3f( h->param.rc.f_aq_bfactor[i], -10, 10 );
+    }
+    h->param.rc.i_aq_boundary[0] = x264_clip3( h->param.rc.i_aq_boundary[0], 0, (256 << (BIT_DEPTH - 8)) - 1 );
+    h->param.rc.i_aq_boundary[1] = x264_clip3( h->param.rc.i_aq_boundary[1], 0, (256 << (BIT_DEPTH - 8)) - 1 );
+    h->param.rc.i_aq_boundary[2] = x264_clip3( h->param.rc.i_aq_boundary[2], 0, (256 << (BIT_DEPTH - 8)) - 1 );
+    if( !h->param.rc.b_aq_boundary ||
+        h->param.rc.i_aq_boundary[0] <= h->param.rc.i_aq_boundary[1] || h->param.rc.i_aq_boundary[1] <= h->param.rc.i_aq_boundary[2] )
+    {
+        h->param.rc.i_aq_boundary[0] = (h->param.vui.b_fullrange == 1 ? 205 : 192) << (BIT_DEPTH - 8);
+        h->param.rc.i_aq_boundary[1] = (h->param.vui.b_fullrange == 1 ?  56 :  64) << (BIT_DEPTH - 8);
+        h->param.rc.i_aq_boundary[2] = (h->param.vui.b_fullrange == 1 ?   9 :  24) << (BIT_DEPTH - 8);
+    }
 
     if( h->param.i_log_level < X264_LOG_INFO && (!h->param.psz_log_file || h->param.i_log_file_level < X264_LOG_INFO) )
     {
@@ -3589,6 +3620,22 @@ static int x264_encoder_frame_end( x264_t *h, x264_t *thread_current,
     }
     psz_message[79] = '\0';
 
+    if( h->param.rc.i_aq_mode )
+    {
+        h->stat.i_aq_count_total += h->mb.i_mb_count;
+        for( int i = 0; i < 5; i++ )
+        {
+            h->stat.i_aq_count[i] += h->stat.frame.i_aq_count[i];
+            h->stat.i_aq_result[i][0] += h->stat.frame.i_aq_result[i][0];
+            h->stat.i_aq_result[i][1] += h->stat.frame.i_aq_result[i][1];
+            h->stat.i_aq_result[i][2] += h->stat.frame.i_aq_result[i][2];
+        }
+        for( int i = h->stat.frame.i_aq_change_min+QP_MAX_SPEC; i <= h->stat.frame.i_aq_change_max+QP_MAX_SPEC; i++ )
+            h->stat.i_aq_change[i] += h->stat.frame.i_aq_change[i];
+        h->stat.i_aq_change_min = X264_MIN(h->stat.i_aq_change_min, h->stat.frame.i_aq_change_min);
+        h->stat.i_aq_change_max = X264_MAX(h->stat.i_aq_change_max, h->stat.frame.i_aq_change_max);
+    }
+
     x264_log( h, X264_LOG_DEBUG,
                   "frame=%4d QP=%.2f NAL=%d Slice:%c Poc:%-3d I:%-4d P:%-4d SKIP:%-4d size=%d bytes%s\n",
               h->i_frame,
@@ -3658,7 +3705,7 @@ void    x264_encoder_close  ( x264_t *h )
 {
     int64_t i_yuv_size = FRAME_SIZE( h->param.i_width * h->param.i_height );
     int64_t i_mb_count_size[2][7] = {{0}};
-    char buf[200];
+    char buf[1500];
     int b_print_pcm = h->stat.i_mb_count[SLICE_TYPE_I][I_PCM]
                    || h->stat.i_mb_count[SLICE_TYPE_P][I_PCM]
                    || h->stat.i_mb_count[SLICE_TYPE_B][I_PCM];
@@ -3933,6 +3980,37 @@ void    x264_encoder_close  ( x264_t *h )
                     p += sprintf( p, " %4.1f%%", 100. * h->stat.i_mb_count_ref[i_slice][i_list][i] / i_den );
                 x264_log( h, X264_LOG_INFO, "ref %c L%d:%s\n", "PB"[i_slice], i_list, buf );
             }
+
+        if( h->stat.i_aq_count_total && !h->param.rc.b_mb_tree )
+        {
+#define GET_AQ_RESULT(x) \
+            100.0 / h->stat.i_aq_count_total * h->stat.i_aq_count[x], \
+            h->stat.i_aq_count[x] ? (100.0 / h->stat.i_aq_count[x] * h->stat.i_aq_result[x][0]) : 0, \
+            h->stat.i_aq_count[x] ? (100.0 / h->stat.i_aq_count[x] * h->stat.i_aq_result[x][1]) : 0, \
+            h->stat.i_aq_count[x] ? (100.0 / h->stat.i_aq_count[x] * h->stat.i_aq_result[x][2]) : 0
+            char *p = buf;
+
+            x264_log( h, X264_LOG_INFO,
+                "AQ Result  Bright MB:%5.2f%%  QP Up:%5.2f%% Down:%5.2f%% Even:%5.2f%%\n",
+                GET_AQ_RESULT(1));
+
+            x264_log( h, X264_LOG_INFO,
+                "AQ Result  Middle MB:%5.2f%%  QP Up:%5.2f%% Down:%5.2f%% Even:%5.2f%%\n",
+                GET_AQ_RESULT(2));
+
+            x264_log( h, X264_LOG_INFO,
+                "AQ Result    Dark MB:%5.2f%%  QP Up:%5.2f%% Down:%5.2f%% Even:%5.2f%%\n",
+                GET_AQ_RESULT(3));
+
+            x264_log( h, X264_LOG_INFO,
+                "AQ Result  M.Dark MB:%5.2f%%  QP Up:%5.2f%% Down:%5.2f%% Even:%5.2f%%\n",
+                GET_AQ_RESULT(4));
+
+            for( int i = h->stat.i_aq_change_min; i <= h->stat.i_aq_change_max; i++ )
+                p += sprintf( p, " %d:%.2f%%", -i, 100.0 / h->stat.i_aq_count_total * h->stat.i_aq_change[i + QP_MAX_SPEC] );
+            x264_log( h, X264_LOG_INFO, "AQ change value %s\n", buf );
+
+        }
 
         if( h->param.analyse.b_ssim )
         {

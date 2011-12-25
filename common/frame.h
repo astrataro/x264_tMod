@@ -127,6 +127,7 @@ typedef struct x264_frame
     float   *f_row_qscale;
     float   *f_qp_offset;
     float   *f_qp_offset_aq;
+    uint8_t *i_aq_type;        // OreAQ mode type
     int     b_intra_calculated;
     uint16_t *i_intra_cost;
     uint16_t *i_propagate_cost;

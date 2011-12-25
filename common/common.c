@@ -110,8 +110,27 @@ void x264_param_default( x264_param_t *param )
     param->rc.i_qp_step = 4;
     param->rc.f_ip_factor = 1.4;
     param->rc.f_pb_factor = 1.3;
-    param->rc.i_aq_mode = X264_AQ_VARIANCE;
-    param->rc.f_aq_strength = 1.0;
+    param->rc.i_aq_mode = X264_AQ_ORE;
+    param->rc.f_aq_strength = 0.5;
+    param->rc.f_aq_strengths[0][0] = 0;
+    param->rc.f_aq_strengths[0][1] = 0;
+    param->rc.f_aq_strengths[0][2] = 0;
+    param->rc.f_aq_strengths[0][3] = 0;
+    param->rc.f_aq_strengths[1][0] = 0;
+    param->rc.f_aq_strengths[1][1] = 0;
+    param->rc.f_aq_strengths[1][2] = 0;
+    param->rc.f_aq_strengths[1][3] = 0;
+    param->rc.f_aq_sensitivity = 10;
+    param->rc.f_aq_ifactor[0] = 1.0;
+    param->rc.f_aq_ifactor[1] = 1.0;
+    param->rc.f_aq_pfactor[0] = 1.0;
+    param->rc.f_aq_pfactor[1] = 1.0;
+    param->rc.f_aq_bfactor[0] = 1.0;
+    param->rc.f_aq_bfactor[1] = 1.0;
+    param->rc.b_aq_boundary = 0;
+    param->rc.i_aq_boundary[0] = 192;
+    param->rc.i_aq_boundary[1] = 64;
+    param->rc.i_aq_boundary[2] = 24;
     param->rc.i_lookahead = 40;
 
     param->rc.b_stat_write = 0;
@@ -373,7 +392,7 @@ static int x264_param_apply_tune( x264_param_t *param, const char *tune )
         else if( !strncasecmp( s, "ssim", 4 ) )
         {
             if( psy_tuning_used++ ) goto psy_failure;
-            param->rc.i_aq_mode = X264_AQ_AUTOVARIANCE;
+            param->rc.i_aq_mode = X264_AQ_MIXORE;
             param->analyse.b_psy = 0;
         }
         else if( !strncasecmp( s, "fastdecode", 10 ) )
@@ -1228,7 +1247,61 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
     OPT("aq-mode")
         p->rc.i_aq_mode = atoi(value);
     OPT("aq-strength")
-        p->rc.f_aq_strength = atof(value);
+    {
+        if( 8 == sscanf( value, "%f:%f:%f:%f:%f:%f:%f:%f",
+                         &p->rc.f_aq_strengths[0][0], &p->rc.f_aq_strengths[1][0], &p->rc.f_aq_strengths[0][1], &p->rc.f_aq_strengths[1][1],
+                         &p->rc.f_aq_strengths[0][2], &p->rc.f_aq_strengths[1][2], &p->rc.f_aq_strengths[0][3], &p->rc.f_aq_strengths[1][3] ) ||
+            8 == sscanf( value, "%f,%f,%f,%f,%f,%f,%f,%f",
+                         &p->rc.f_aq_strengths[0][0], &p->rc.f_aq_strengths[1][0], &p->rc.f_aq_strengths[0][1], &p->rc.f_aq_strengths[1][1],
+                         &p->rc.f_aq_strengths[0][2], &p->rc.f_aq_strengths[1][2], &p->rc.f_aq_strengths[0][3], &p->rc.f_aq_strengths[1][3] ) )
+            p->rc.f_aq_strength = 0.0;
+        else if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq_strengths[0][0], &p->rc.f_aq_strengths[1][0] ) ||
+                 2 == sscanf( value, "%f,%f", &p->rc.f_aq_strengths[0][0], &p->rc.f_aq_strengths[1][0] ) )
+        {
+            p->rc.f_aq_strength = 0.0;
+            for( i = 0; i < 2; i++ )
+                for( int j = 1; j < 4; j++ )
+                    p->rc.f_aq_strengths[i][j] = p->rc.f_aq_strengths[i][0];
+        }
+        else if( sscanf( value, "%f", &p->rc.f_aq_strength ) )
+            for( i = 0; i < 2; i++ )
+                for( int j = 0; j < 4; j++ )
+                    p->rc.f_aq_strengths[i][j] = p->rc.f_aq_strength;
+    }
+    OPT("aq-sensitivity")
+        p->rc.f_aq_sensitivity = atof(value);
+    OPT("aq-ifactor")
+        if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq_ifactor[0], &p->rc.f_aq_ifactor[1] ) ||
+            2 == sscanf( value, "%f,%f", &p->rc.f_aq_ifactor[0], &p->rc.f_aq_ifactor[1] ) )
+        { }
+        else if( sscanf( value, "%f", &p->rc.f_aq_ifactor[0] ) )
+            p->rc.f_aq_ifactor[1] = p->rc.f_aq_ifactor[0];
+        else
+            p->rc.f_aq_ifactor[1] = p->rc.f_aq_ifactor[0] = 1.0;
+    OPT("aq-pfactor")
+        if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq_pfactor[0], &p->rc.f_aq_pfactor[1] ) ||
+            2 == sscanf( value, "%f,%f", &p->rc.f_aq_pfactor[0], &p->rc.f_aq_pfactor[1] ) )
+        { }
+        else if( sscanf( value, "%f", &p->rc.f_aq_pfactor[0] ) )
+            p->rc.f_aq_pfactor[1] = p->rc.f_aq_pfactor[0];
+        else
+            p->rc.f_aq_pfactor[1] = p->rc.f_aq_pfactor[0] = 1.0;
+    OPT("aq-bfactor")
+        if( 2 == sscanf( value, "%f:%f", &p->rc.f_aq_bfactor[0], &p->rc.f_aq_bfactor[1] ) ||
+            2 == sscanf( value, "%f,%f", &p->rc.f_aq_bfactor[0], &p->rc.f_aq_bfactor[1] ) )
+        { }
+        else if( sscanf( value, "%f", &p->rc.f_aq_bfactor[0] ) )
+            p->rc.f_aq_bfactor[1] = p->rc.f_aq_bfactor[0];
+        else
+            p->rc.f_aq_bfactor[1] = p->rc.f_aq_bfactor[0] = 1.0;
+    OPT("aq-boundary")
+    {
+        if( 3 == sscanf( value, "%d:%d:%d", &p->rc.i_aq_boundary[0], &p->rc.i_aq_boundary[1], &p->rc.i_aq_boundary[2] ) ||
+            3 == sscanf( value, "%d,%d,%d", &p->rc.i_aq_boundary[0], &p->rc.i_aq_boundary[1], &p->rc.i_aq_boundary[2] ) )
+            p->rc.b_aq_boundary = 1;
+        else
+            p->rc.i_aq_boundary[0] = p->rc.i_aq_boundary[1] = p->rc.i_aq_boundary[2] = 0;
+    }
     OPT("fgo")
         p->analyse.i_fgo = atoi(value);
     OPT("fade-compensate")
@@ -1734,7 +1807,16 @@ char *x264_param2string( x264_param_t *p, int b_res )
             s += sprintf( s, " pb_ratio=%.2f", p->rc.f_pb_factor );
         s += sprintf( s, " aq=%d", p->rc.i_aq_mode );
         if( p->rc.i_aq_mode )
-            s += sprintf( s, ":%.2f", p->rc.f_aq_strength );
+        {
+            s += sprintf( s, " aq-strength=%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.2f:%.2f",
+                          p->rc.f_aq_strengths[0][0], p->rc.f_aq_strengths[1][0], p->rc.f_aq_strengths[0][1], p->rc.f_aq_strengths[1][1],
+                          p->rc.f_aq_strengths[0][2], p->rc.f_aq_strengths[1][2], p->rc.f_aq_strengths[0][3], p->rc.f_aq_strengths[1][3] );
+            s += sprintf( s, " aq-sensitivity=%.2f", p->rc.f_aq_sensitivity );
+            s += sprintf( s, " aq-ifactor=%.2f:%.2f", p->rc.f_aq_ifactor[0], p->rc.f_aq_ifactor[1] );
+            s += sprintf( s, " aq-pfactor=%.2f:%.2f", p->rc.f_aq_pfactor[0], p->rc.f_aq_pfactor[1] );
+            s += sprintf( s, " aq-bfactor=%.2f:%.2f", p->rc.f_aq_bfactor[0], p->rc.f_aq_bfactor[1] );
+            s += sprintf( s, " aq-boundary=%d:%d:%d", p->rc.i_aq_boundary[0], p->rc.i_aq_boundary[1], p->rc.i_aq_boundary[2] );
+        }
         if( p->rc.psz_zones )
             s += sprintf( s, " zones=%s", p->rc.psz_zones );
         else if( p->rc.i_zones )
