@@ -50,7 +50,7 @@ DECL_X1( sad_aligned, neon )
 DECL_X1( sad_aligned, neon_dual )
 DECL_X4( sad, neon )
 DECL_X1( satd, neon )
-DECL_X1( ssd, neon )
+DECL_PIXELS( int, ssd, neon, ( uint8_t *, intptr_t, uint8_t *, intptr_t, intptr_t ) )
 
 int x264_pixel_sa8d_8x8_neon  ( uint8_t *, intptr_t, uint8_t *, intptr_t );
 int x264_pixel_sa8d_16x16_neon( uint8_t *, intptr_t, uint8_t *, intptr_t );
