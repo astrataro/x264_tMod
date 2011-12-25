@@ -198,7 +198,14 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     h->frame_size     = h->frame_header_len;
 
     if( h->bit_depth > 8 )
+    {
         info->csp |= X264_CSP_HIGH_DEPTH;
+        if( h->bit_depth == BIT_DEPTH )
+        {
+            /* HACK: totally skips depth filter to prevent dither error */
+            info->csp |= X264_CSP_SKIP_DEPTH_FILTER;
+        }
+    }
 
     const x264_cli_csp_t *csp = x264_cli_get_csp( info->csp );
 
@@ -250,7 +257,7 @@ static int read_frame_internal( cli_pic_t *pic, y4m_hnd_t *h )
     for( i = 0; i < pic->img.planes && !error; i++ )
     {
         error |= fread( pic->img.plane[i], pixel_depth, h->plane_size[i], h->fh ) != h->plane_size[i];
-        if( h->bit_depth & 7 )
+        if( h->bit_depth & 7 && h->bit_depth != BIT_DEPTH )
         {
             /* upconvert non 16bit high depth planes to 16bit using the same
              * algorithm as used in the depth filter. */

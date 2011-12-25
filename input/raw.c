@@ -65,7 +65,14 @@ static int open_file( char *psz_filename, hnd_t *p_handle, video_info_t *info, c
     h->bit_depth = opt->bit_depth;
     FAIL_IF_ERROR( h->bit_depth < 8 || h->bit_depth > 16, "unsupported bit depth `%d'\n", h->bit_depth );
     if( h->bit_depth > 8 )
+    {
         info->csp |= X264_CSP_HIGH_DEPTH;
+        if( h->bit_depth == BIT_DEPTH )
+        {
+            /* HACK: totally skips depth filter to prevent dither error */
+            info->csp |= X264_CSP_SKIP_DEPTH_FILTER;
+        }
+    }
 
     if( !strcmp( psz_filename, "-" ) )
         h->fh = stdin;
@@ -106,7 +113,7 @@ static int read_frame_internal( cli_pic_t *pic, raw_hnd_t *h )
     for( int i = 0; i < pic->img.planes && !error; i++ )
     {
         error |= fread( pic->img.plane[i], pixel_depth, h->plane_size[i], h->fh ) != h->plane_size[i];
-        if( h->bit_depth & 7 )
+        if( h->bit_depth & 7 && h->bit_depth != BIT_DEPTH )
         {
             /* upconvert non 16bit high depth planes to 16bit using the same
              * algorithm as used in the depth filter. */
