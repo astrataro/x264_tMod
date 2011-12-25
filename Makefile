@@ -96,6 +96,10 @@ ifneq ($(findstring HAVE_AMRWB_3GPP 1, $(CONFIG)),)
 SRCCLI += audio/encoders/enc_amrwb_3gpp.c
 endif
 
+ifneq ($(findstring HAVE_AVI_OUTPUT 1, $(CONFIG)),)
+SRCCLI += output/avi.c
+endif
+
 # Visualization sources
 ifneq ($(findstring HAVE_VISUALIZE 1, $(CONFIG)),)
 SRCS   += common/visualize.c common/display-x11.c
