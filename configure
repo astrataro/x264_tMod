@@ -1367,7 +1367,7 @@ Libs.private: $libpthread $libm
 Cflags: -I$includedir
 EOF
 
-filters="crop select_every hqdn3d pad vflip"
+filters="crop select_every hqdn3d pad vflip subtitles"
 gpl_filters="yadif"
 [ $swscale = yes ] && filters="resize $filters"
 [ $gpl = yes ] && filters="$filters $gpl_filters"
