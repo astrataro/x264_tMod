@@ -697,6 +697,7 @@ static int x264_validate_parameters( x264_t *h, int b_open )
         h->param.rc.i_qp_min = x264_clip3( (int)(X264_MIN3( qp_p, qp_i, qp_b )), 0, QP_MAX );
         h->param.rc.i_qp_max = x264_clip3( (int)(X264_MAX3( qp_p, qp_i, qp_b ) + .999), 0, QP_MAX );
         h->param.rc.i_aq_mode = 0;
+        h->param.rc.b_aq2 = 0;
         h->param.rc.b_mb_tree = 0;
         h->param.rc.i_bitrate = 0;
     }
@@ -897,9 +898,15 @@ static int x264_validate_parameters( x264_t *h, int b_open )
         h->param.rc.f_fade_compensate = 0;
 
     h->param.rc.i_aq_mode = x264_clip3( h->param.rc.i_aq_mode, 0, 4 );
-    h->param.rc.f_aq_strength = x264_clip3f( h->param.rc.f_aq_strength, 0, 3 );
-    if( h->param.rc.f_aq_strength == 0 )
+    h->param.rc.f_aq_strength = x264_clip3f( h->param.rc.f_aq_strength, -3, 3 );
+    h->param.rc.b_aq2 = h->param.rc.b_aq2 && h->param.rc.f_aq2_strength > 0;
+    if( h->param.rc.f_aq_strength == 0 && (h->param.rc.i_aq_mode > 0 ? !h->param.rc.b_aq2 : 1) )
         h->param.rc.i_aq_mode = 0;
+    if( h->param.rc.f_aq_sensitivity < 0 )
+        h->param.rc.f_aq_sensitivity = 0;
+    h->param.rc.f_aq_ifactor = x264_clip3f( h->param.rc.f_aq_ifactor, -10, 10 );
+    h->param.rc.f_aq_pfactor = x264_clip3f( h->param.rc.f_aq_pfactor, -10, 10 );
+    h->param.rc.f_aq_bfactor = x264_clip3f( h->param.rc.f_aq_bfactor, -10, 10 );
 
     if( h->param.i_log_level < X264_LOG_INFO && (!h->param.psz_log_file || h->param.i_log_file_level < X264_LOG_INFO) )
     {

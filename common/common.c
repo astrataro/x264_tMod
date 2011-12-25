@@ -110,8 +110,15 @@ void x264_param_default( x264_param_t *param )
     param->rc.i_qp_step = 4;
     param->rc.f_ip_factor = 1.4;
     param->rc.f_pb_factor = 1.3;
-    param->rc.i_aq_mode = X264_AQ_VARIANCE;
+    param->rc.i_aq_mode = X264_AQ_MIX;
     param->rc.f_aq_strength = 1.0;
+    param->rc.f_aq_sensitivity = 10;
+    param->rc.f_aq_ifactor = 1.0;
+    param->rc.f_aq_pfactor = 1.0;
+    param->rc.f_aq_bfactor = 1.0;
+    param->rc.b_aq2 = 0;
+    param->rc.f_aq2_strength = 0.0;
+    param->rc.f_aq2_sensitivity = 15.0;
     param->rc.i_lookahead = 40;
 
     param->rc.b_stat_write = 0;
@@ -373,7 +380,7 @@ static int x264_param_apply_tune( x264_param_t *param, const char *tune )
         else if( !strncasecmp( s, "ssim", 4 ) )
         {
             if( psy_tuning_used++ ) goto psy_failure;
-            param->rc.i_aq_mode = X264_AQ_AUTOVARIANCE;
+            param->rc.i_aq_mode = X264_AQ_AUTOMIX;
             param->analyse.b_psy = 0;
         }
         else if( !strncasecmp( s, "fastdecode", 10 ) )
@@ -1229,6 +1236,21 @@ int x264_param_parse( x264_param_t *p, const char *name, const char *value )
         p->rc.i_aq_mode = atoi(value);
     OPT("aq-strength")
         p->rc.f_aq_strength = atof(value);
+    OPT("aq-sensitivity")
+        p->rc.f_aq_sensitivity = atof(value);
+    OPT("aq-ifactor")
+        p->rc.f_aq_ifactor = atof(value);
+    OPT("aq-pfactor")
+        p->rc.f_aq_pfactor = atof(value);
+    OPT("aq-bfactor")
+        p->rc.f_aq_bfactor = atof(value);
+    OPT("aq2-strength")
+    {
+        p->rc.f_aq2_strength = atof(value);
+        p->rc.b_aq2 = 1;
+    }
+    OPT("aq2-sensitivity")
+        p->rc.f_aq2_sensitivity = atof(value);
     OPT("fgo")
         p->analyse.i_fgo = atoi(value);
     OPT("fade-compensate")
@@ -1734,7 +1756,19 @@ char *x264_param2string( x264_param_t *p, int b_res )
             s += sprintf( s, " pb_ratio=%.2f", p->rc.f_pb_factor );
         s += sprintf( s, " aq=%d", p->rc.i_aq_mode );
         if( p->rc.i_aq_mode )
+        {
             s += sprintf( s, ":%.2f", p->rc.f_aq_strength );
+            s += sprintf( s, " aq-sensitivity=%.2f", p->rc.f_aq_sensitivity );
+            s += sprintf( s, " aq-ifactor=%.2f", p->rc.f_aq_ifactor );
+            s += sprintf( s, " aq-pfactor=%.2f", p->rc.f_aq_pfactor );
+            s += sprintf( s, " aq-bfactor=%.2f", p->rc.f_aq_bfactor );
+        }
+        s += sprintf( s, " aq2=%d", p->rc.b_aq2 );
+        if( p->rc.b_aq2 )
+        {
+            s += sprintf( s, ":%.2f", p->rc.f_aq2_strength );
+            s += sprintf( s, " aq2-sensitivity=%.2f", p->rc.f_aq2_sensitivity );
+        }
         if( p->rc.psz_zones )
             s += sprintf( s, " zones=%s", p->rc.psz_zones );
         else if( p->rc.i_zones )

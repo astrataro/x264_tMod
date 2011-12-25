@@ -798,6 +798,19 @@ static void help( x264_param_t *defaults, int longhelp )
         "                                  - 4: Auto-variance AQ mod2\n", defaults->rc.i_aq_mode );
     H1( "      --aq-strength <float>   Reduces blocking and blurring in flat and\n"
         "                              textured areas. [%.1f]\n", defaults->rc.f_aq_strength );
+    H1( "      --aq-sensitivity <float> \"Center\" of AQ curve. [%.1f]\n"
+        "                                  -  5: most QPs are raised\n"
+        "                                  - 10: good general-use sensitivity\n"
+        "                                  - 15: most QPs are lowered\n", defaults->rc.f_aq_sensitivity );
+    H2( "      --aq-ifactor <float>    AQ strength factor of I-frames [%.2f]\n", defaults->rc.f_aq_ifactor );
+    H2( "      --aq-pfactor <float>    AQ strength factor of P-frames [%.2f]\n", defaults->rc.f_aq_pfactor );
+    H2( "      --aq-bfactor <float>    AQ strength factor of B-frames [%.2f]\n", defaults->rc.f_aq_bfactor );
+    H1( "      --aq2-strength <float>   Use 2nd AQ (Haali's AQ) algorithm for support. [%.1f]\n"
+        "                                  0.0: no 2nd AQ\n"
+        "                                  1.1: strong 2nd AQ\n", defaults->rc.f_aq2_strength );
+    H1( "      --aq2-sensitivity <float> \"Flatness\" threshold to trigger 2nd AQ [%.1f]\n"
+        "                                    5: applies to almost all blocks\n"
+        "                                   22: only flat blocks\n", defaults->rc.f_aq2_sensitivity );
     H1( "      --fade-compensate <float> Allocate more bits to fades [%.1f]\n", defaults->rc.f_fade_compensate );
     H2( "                                  Approximate sane range: 0.0 - 1.0 (requires mb-tree)\n" );
     H1( "\n" );
@@ -1210,7 +1223,13 @@ static struct option long_options[] =
     { "no-fast-pskip",     no_argument, NULL, 0 },
     { "no-dct-decimate",   no_argument, NULL, 0 },
     { "aq-strength", required_argument, NULL, 0 },
+    { "aq-sensitivity", required_argument, NULL, 0 },
+    { "aq-ifactor",  required_argument, NULL, 0 },
+    { "aq-pfactor",  required_argument, NULL, 0 },
+    { "aq-bfactor",  required_argument, NULL, 0 },
     { "aq-mode",     required_argument, NULL, 0 },
+    { "aq2-strength", required_argument, NULL, 0 },
+    { "aq2-sensitivity", required_argument, NULL, 0 },
     { "fgo",         required_argument, NULL, 0 },
     { "fade-compensate", required_argument, NULL, 0 },
     { "deadzone-inter", required_argument, NULL, 0 },
