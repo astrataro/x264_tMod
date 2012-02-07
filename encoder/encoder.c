@@ -867,7 +867,7 @@ static int x264_validate_parameters( x264_t *h, int b_open )
     if( !h->param.rc.b_mb_tree )
         h->param.rc.f_fade_compensate = 0;
 
-    h->param.rc.i_aq_mode = x264_clip3( h->param.rc.i_aq_mode, 0, 2 );
+    h->param.rc.i_aq_mode = x264_clip3( h->param.rc.i_aq_mode, 0, 4 );
     h->param.rc.f_aq_strength = x264_clip3f( h->param.rc.f_aq_strength, 0, 3 );
     if( h->param.rc.f_aq_strength == 0 )
         h->param.rc.i_aq_mode = 0;

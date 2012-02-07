@@ -745,7 +745,9 @@ static void help( x264_param_t *defaults, int longhelp )
     H2( "      --aq-mode <integer>     AQ method [%d]\n"
         "                                  - 0: Disabled\n"
         "                                  - 1: Variance AQ (complexity mask)\n"
-        "                                  - 2: Auto-variance AQ (experimental)\n", defaults->rc.i_aq_mode );
+        "                                  - 2: Auto-variance AQ (experimental)\n"
+        "                                  - 3: Auto-variance AQ mod1\n"
+        "                                  - 4: Auto-variance AQ mod2\n", defaults->rc.i_aq_mode );
     H1( "      --aq-strength <float>   Reduces blocking and blurring in flat and\n"
         "                              textured areas. [%.1f]\n", defaults->rc.f_aq_strength );
     H1( "      --fade-compensate <float> Allocate more bits to fades [%.1f]\n", defaults->rc.f_fade_compensate );
