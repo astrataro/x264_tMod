@@ -3,22 +3,40 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#define WIN32_LEAN_AND_MEAN
+#if USE_AVXSYNTH
+#include <dlfcn.h>
+#if SYS_MACOSX
+#define avs_open dlopen( "libavxsynth.dylib", RTLD_NOW )
+#else
+#define avs_open dlopen( "libavxsynth.so", RTLD_NOW )
+#endif
+#define avs_close dlclose
+#define avs_address dlsym
+#else
 #include <windows.h>
-#undef WIN32_LEAN_AND_MEAN
+#define avs_open LoadLibrary( "avisynth" )
+#define avs_close FreeLibrary
+#define avs_address GetProcAddress
+#endif
 
 #define AVSC_NO_DECLSPEC
 #undef EXTERN_C
+#if USE_AVXSYNTH
+#include "extras/avxsynth_c.h"
+#else
 #include "extras/avisynth_c.h"
+#endif
 #define AVSC_DECLARE_FUNC(name) name##_func name
 
+/* AVS uses a versioned interface to control backwards compatibility */
+/* YV12 support is required, which was added in 2.5 */
 #define AVS_INTERFACE_25 2
 #define DEFAULT_BUFSIZE 192000 // 1 second of 48khz 32bit audio
                                // same as AVCODEC_MAX_AUDIO_FRAME_SIZE
 
 #define LOAD_AVS_FUNC(name, continue_on_fail)\
 {\
-    h->func.name = (void*)GetProcAddress( h->library, #name );\
+    h->func.name = (void*)avs_address( h->library, #name );\
     if( !continue_on_fail && !h->func.name )\
         goto fail;\
 }
@@ -42,6 +60,7 @@ typedef struct avs_source_t
         AVSC_DECLARE_FUNC( avs_clip_get_error );
         AVSC_DECLARE_FUNC( avs_create_script_environment );
         AVSC_DECLARE_FUNC( avs_delete_script_environment );
+        AVSC_DECLARE_FUNC( avs_get_error );
         AVSC_DECLARE_FUNC( avs_get_audio );
         AVSC_DECLARE_FUNC( avs_get_video_info );
         AVSC_DECLARE_FUNC( avs_function_exists );
@@ -56,12 +75,13 @@ const audio_filter_t audio_filter_avs;
 
 static int x264_audio_avs_load_library( avs_source_t *h )
 {
-    h->library = LoadLibrary( "avisynth" );
+    h->library = avs_open;
     if( !h->library )
         return -1;
     LOAD_AVS_FUNC( avs_clip_get_error, 0 );
     LOAD_AVS_FUNC( avs_create_script_environment, 0 );
     LOAD_AVS_FUNC( avs_delete_script_environment, 1 );
+    LOAD_AVS_FUNC( avs_get_error, 1 );
     LOAD_AVS_FUNC( avs_get_audio, 0 );
     LOAD_AVS_FUNC( avs_get_video_info, 0 );
     LOAD_AVS_FUNC( avs_function_exists, 0 );
@@ -71,7 +91,7 @@ static int x264_audio_avs_load_library( avs_source_t *h )
     LOAD_AVS_FUNC( avs_take_clip, 0 );
     return 0;
 fail:
-    FreeLibrary( h->library );
+    avs_close( h->library );
     return -1;
 }
 
@@ -83,6 +103,7 @@ static void update_clip( avs_source_t *h, const AVS_VideoInfo **vi, AVS_Value *r
     return;
 }
 
+#if !USE_AVXSYNTH
 static AVS_Value check_avisource( hnd_t handle, const char *filename, int track )
 {
     avs_source_t *h = handle;
@@ -182,9 +203,9 @@ static void avs_audio_build_filter_sequence( const char *ext, int track,
         filters[i++] = check_directshowsource;
     }
     filters[i] = NULL;
-
     return;
 }
+#endif
 
 #define GOTO_IF( cond, label, ... ) \
 if( cond ) \
@@ -203,20 +224,34 @@ static int init( hnd_t *handle, const char *opt_str )
         return -1;
 
     char *filename = x264_get_option( "filename", opts );
+#if !USE_AVXSYNTH
     char *filename_ext = get_filename_extension( filename );
+#endif
     int track = x264_otoi( x264_get_option( "track", opts ), TRACK_ANY );
 
     GOTO_IF( track == TRACK_NONE, fail2, "no valid track requested ('any', 0 or a positive integer)\n" )
+#if USE_AVXSYNTH
+    GOTO_IF( track > 0, fail2, "only script imports are supported by this filter\n" )
+#endif
     GOTO_IF( !filename, fail2, "no filename given\n" )
     GOTO_IF( !x264_is_regular_file_path( filename ), fail2, "reading audio from non-regular files is not supported\n" )
 
     INIT_FILTER_STRUCT( audio_filter_avs, avs_source_t );
 
     GOTO_IF( x264_audio_avs_load_library( h ), error, "failed to load avisynth\n" )
-
     h->env = h->func.avs_create_script_environment( AVS_INTERFACE_25 );
-    GOTO_IF( !h->env, error, "failed to initiate avisynth\n" )
+    if( h->func.avs_get_error )
+    {
+        const char *error = h->func.avs_get_error( h->env );
+        GOTO_IF( error, error, "%s\n", error );
+    }
 
+#if USE_AVXSYNTH
+    AVS_Value arg = avs_new_value_string( filename );
+    AVS_Value res = h->func.avs_invoke( h->env, "Import", arg, NULL );
+    h->func.avs_release_value( arg );
+    GOTO_IF( avs_is_error( res ), error, "%s\n", avs_as_string( res ) )
+#else
     AVS_Value res = avs_void;
     if( !strcmp( filename_ext, "avs" ) )
     {
@@ -241,6 +276,7 @@ static int init( hnd_t *handle, const char *opt_str )
         }
         GOTO_IF( !filters[i], error, "no working input filter is found for audio input\n" )
     }
+#endif
 
     GOTO_IF( !avs_is_clip( res ), error, "no valid clip is found\n" )
     h->clip = h->func.avs_take_clip( res, h->env );
@@ -353,14 +389,14 @@ fail:
     return NULL;
 }
 
-static void avs_close( hnd_t handle )
+static void avs_close_file( hnd_t handle )
 {
     assert( handle );
     avs_source_t *h = handle;
     h->func.avs_release_clip( h->clip );
     if( h->func.avs_delete_script_environment )
         h->func.avs_delete_script_environment( h->env );
-    FreeLibrary( h->library );
+    avs_close( h->library );
     free( h->buffer );
     free( h );
 }
@@ -368,10 +404,14 @@ static void avs_close( hnd_t handle )
 const audio_filter_t audio_filter_avs =
 {
         .name        = "avs",
-        .description = "Retrive PCM samples from specified audio track with AVISynth",
+#if USE_AVXSYNTH
+        .description = "Retrieve PCM samples from specified audio track with AvxSynth",
+#else
+        .description = "Retrieve PCM samples from specified audio track with AviSynth",
+#endif
         .help        = "Arguments: filename",
         .init        = init,
         .get_samples = get_samples,
         .free_packet = free_packet,
-        .close       = avs_close
+        .close       = avs_close_file
 };
