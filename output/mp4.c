@@ -331,6 +331,8 @@ static void remove_mp4_hnd( hnd_t handle )
     free( p_mp4 );
 }
 
+#if HAVE_ANY_AUDIO
+
 static int aac_init( mp4_audio_hnd_t *p_audio )
 {
     p_audio->codec_type = ISOM_CODEC_TYPE_MP4A_AUDIO;
@@ -459,6 +461,8 @@ static int alac_init( mp4_audio_hnd_t *p_audio )
     }
     return 0;
 }
+
+#endif /* #if HAVE_ANY_AUDIO */
 
 #if HAVE_AUDIO
 static int audio_init( hnd_t handle, cli_output_opt_t *opt, hnd_t filters, char *audio_enc, char *audio_parameters )
@@ -1190,11 +1194,17 @@ static int set_param( hnd_t handle, x264_param_t *p_param )
             brands[brand_count++] = ISOM_BRAND_TYPE_M4A;
         }
         brands[brand_count++] = ISOM_BRAND_TYPE_ISOM;
+#if HAVE_ANY_AUDIO
         if( p_mp4->audio_hnd || p_mp4->b_use_recovery )
+#else
+        if( p_mp4->b_use_recovery )
+#endif
         {
             brands[brand_count++] = ISOM_BRAND_TYPE_AVC1;   /* sdtp, sgpd, sbgp and visual roll recovery grouping */
+#if HAVE_ANY_AUDIO
             if( p_mp4->audio_hnd )
                 brands[brand_count++] = ISOM_BRAND_TYPE_ISO2;   /* audio roll recovery grouping */
+#endif
             if( p_param->b_open_gop )
                 brands[brand_count++] = ISOM_BRAND_TYPE_ISO6;   /* cslg and visual random access grouping */
         }
