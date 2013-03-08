@@ -1974,6 +1974,7 @@ generic_option:
         shown_colormatrix = info.colormatrix;
 
     x264_reduce_fraction( &info.sar_width, &info.sar_height );
+    x264_ntsc_fps( &info.fps_num, &info.fps_den );
     x264_reduce_fraction( &info.fps_num, &info.fps_den );
     x264_cli_log( demuxername, X264_LOG_INFO, "%dx%d%c %u:%u @ %u/%u fps (%cfr)\n", info.width,
                   info.height, info.interlaced ? 'i' : 'p', info.sar_width, info.sar_height,
