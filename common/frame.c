@@ -248,6 +248,11 @@ static x264_frame_t *x264_frame_new( x264_t *h, int b_fdec )
                 /* shouldn't really be initialized, just silences a valgrind false-positive in x264_mbtree_propagate_cost_sse2 */
                 CHECKED_MALLOCZERO( frame->i_inv_qscale_factor, (h->mb.i_mb_count+3) * sizeof(uint16_t) );
         }
+        if( h->param.rc.i_aq3_mode )
+        {
+            CHECKED_MALLOC( frame->f_qp_offset3, h->mb.i_mb_count * sizeof(float) );
+            CHECKED_MALLOC( frame->f_qp_offset_aq3, h->mb.i_mb_count * sizeof(float) );
+        }
     }
 
     if( x264_pthread_mutex_init( &frame->mutex, NULL ) )
@@ -290,6 +295,8 @@ void x264_frame_delete( x264_frame_t *frame )
                 x264_free( frame->lowres_costs[j][i] );
         x264_free( frame->f_qp_offset );
         x264_free( frame->f_qp_offset_aq );
+        x264_free( frame->f_qp_offset3 );
+        x264_free( frame->f_qp_offset_aq3 );
         x264_free( frame->i_inv_qscale_factor );
         x264_free( frame->i_row_bits );
         x264_free( frame->f_row_qp );
