@@ -30,6 +30,10 @@ typedef struct lavf_source_t
     int eof;
 } lavf_source_t;
 
+#ifndef AVCODEC_MAX_AUDIO_FRAME_SIZE
+#define AVCODEC_MAX_AUDIO_FRAME_SIZE 192000 // 1 second of 48khz 32bit audio
+#endif
+
 #define DEFAULT_BUFSIZE AVCODEC_MAX_AUDIO_FRAME_SIZE * 2
 
 static int buffer_next_frame( lavf_source_t *h );
